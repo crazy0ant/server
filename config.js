@@ -23,8 +23,8 @@ module.exports =
 		// NOTE: Set your own valid certificate files.
 		tls        :
 		{
-			cert : process.env.HTTPS_CERT_FULLCHAIN || `${__dirname}/certs/fullchain.pem`,
-			key  : process.env.HTTPS_CERT_PRIVKEY || `${__dirname}/certs/privkey.key`
+			cert : process.env.HTTPS_CERT_FULLCHAIN || `${__dirname}/certs/av.syocn.com.crt`,
+			key  : process.env.HTTPS_CERT_PRIVKEY || `${__dirname}/certs/av.syocn.com.key`
 		}
 	},
 	http  :

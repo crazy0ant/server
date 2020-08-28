@@ -52,7 +52,7 @@ let protooWebSocketServer;
 
 // Protoo WebSocket server.
 // @type {protoo.WebSocketServer}
-let protooWebSocketServer2;
+let protooWSSWebSocketServer;
 
 // mediasoup Workers.
 // @type {Array<mediasoup.Worker>}
@@ -91,7 +91,7 @@ async function run()
 	await runProtooWebSocketServer();
 
 	// Run a protoo WebSocketServer2.
-	await runProtooWebSocketServer2();
+	await runProtooWSSWebSocketServer();
 
 	// Log rooms status every X seconds.
 	setInterval(() =>
@@ -150,7 +150,6 @@ async function createExpressApp()
 	logger.info('creating Express app...');
 
 	expressApp = express();
-
 	expressApp.use(bodyParser.json());
 
 	/**
@@ -168,9 +167,7 @@ async function createExpressApp()
 				error.status = 404;
 				throw error;
 			}
-
 			req.room = rooms.get(roomId);
-
 			next();
 		});
 
@@ -182,7 +179,6 @@ async function createExpressApp()
 		'/rooms/:roomId', (req, res) =>
 		{
 			const data = req.room.getRouterRtpCapabilities();
-
 			res.status(200).json(data);
 		});
 
@@ -198,7 +194,6 @@ async function createExpressApp()
 				device,
 				rtpCapabilities
 			} = req.body;
-
 			try
 			{
 				const data = await req.room.createBroadcaster(
@@ -242,7 +237,6 @@ async function createExpressApp()
 		{
 			const { broadcasterId } = req.params;
 			const { type, rtcpMux, comedia } = req.body;
-
 			try
 			{
 				const data = await req.room.createBroadcasterTransport(
@@ -252,7 +246,6 @@ async function createExpressApp()
 						rtcpMux,
 						comedia
 					});
-
 				res.status(200).json(data);
 			}
 			catch (error)
@@ -280,7 +273,6 @@ async function createExpressApp()
 						transportId,
 						dtlsParameters
 					});
-
 				res.status(200).json(data);
 			}
 			catch (error)
@@ -301,7 +293,6 @@ async function createExpressApp()
 		{
 			const { broadcasterId, transportId } = req.params;
 			const { kind, rtpParameters } = req.body;
-
 			try
 			{
 				const data = await req.room.createBroadcasterProducer(
@@ -332,7 +323,6 @@ async function createExpressApp()
 		{
 			const { broadcasterId, transportId } = req.params;
 			const { producerId } = req.query;
-
 			try
 			{
 				const data = await req.room.createBroadcasterConsumer(
@@ -341,7 +331,6 @@ async function createExpressApp()
 						transportId,
 						producerId
 					});
-
 				res.status(200).json(data);
 			}
 			catch (error)
@@ -350,6 +339,28 @@ async function createExpressApp()
 			}
 		});
 
+	/**
+	 * 根据peerId查询指定房间内是否存在某个账号
+	 * eg: /rooms/1034/peerId/user1
+	 * 如果user1已加入1034，返回true
+	 * 校验用户名密码通过后，验证某个ID是否已加入房间，如果已加入，禁止继续加入房间
+	 */
+	expressApp.get(
+		'/rooms/:roomId/peerId/:peerId', (req, res) =>
+		{
+			console.log(req.params);
+			let result = false;
+			const {peerId} = req.params;
+			const protooRoom = req.room._protooRoom;
+			if(protooRoom && req.room._protooRoom._peers){
+				const peer = req.room._protooRoom._peers.get(peerId)
+				if(peer){
+					result = true;
+				}
+			}
+			console.log(req.room._protooRoom._peers)
+			res.status(200).send(JSON.stringify(result));
+		});
 	/**
 	 * Error handler.
 	 */
@@ -402,7 +413,6 @@ async function runHttpServer()
 
 	// HTTP server for the protoo WebSocket server.
 
-
 	httpServer = http.createServer(expressApp);
 
 	await new Promise((resolve) =>
@@ -429,52 +439,51 @@ async function runProtooWebSocketServer()
 		});
 
 	// Handle connections from clients.
-	protooWebSocketServer.on('connectionrequest', (info, accept, reject) =>
-	{
-		// The client indicates the roomId and peerId in the URL query.
-		const u = url.parse(info.request.url, true);
-		const roomId = u.query['roomId'];
-		const peerId = u.query['peerId'];
-		const forceH264 = u.query['forceH264'] === 'true';
-		const forceVP9 = u.query['forceVP9'] === 'true';
-
-		if (!roomId || !peerId)
-		{
-			reject(400, 'Connection request without roomId and/or peerId');
-
-			return;
-		}
-
-		logger.info(
-			'protoo connection request [roomId:%s, peerId:%s, address:%s, origin:%s]',
-			roomId, peerId, info.socket.remoteAddress, info.origin);
-
-		// Serialize this code into the queue to avoid that two peers connecting at
-		// the same time with the same roomId create two separate rooms with same
-		// roomId.
-		queue.push(async () =>
-		{
-			const room = await getOrCreateRoom({ roomId, forceH264, forceVP9 });
-
-			// Accept the protoo WebSocket connection.
-			const protooWebSocketTransport = accept();
-
-			room.handleProtooConnection({ peerId, protooWebSocketTransport });
-		})
-			.catch((error) =>
-			{
-				logger.error('room creation or room joining failed:%o', error);
-
-				reject(error);
-			});
-	});
+	protooWebSocketServer.on('connectionrequest', (info, accept, reject) =>handleConnect(info, accept, reject));
 }
-async function runProtooWebSocketServer2()
+async function handleConnect(info, accept, reject){
+	// The client indicates the roomId and peerId in the URL query.
+	const u = url.parse(info.request.url, true);
+	const roomId = u.query['roomId'];
+	const peerId = u.query['peerId'];
+	const forceH264 = u.query['forceH264'] === 'true';
+	const forceVP9 = u.query['forceVP9'] === 'true';
+
+	if (!roomId || !peerId)
+	{
+		reject(400, 'Connection request without roomId and/or peerId');
+		return;
+	}
+
+	logger.info(
+		'protoo connection request [roomId:%s, peerId:%s, address:%s, origin:%s]',
+		roomId, peerId, info.socket.remoteAddress, info.origin);
+
+	// Serialize this code into the queue to avoid that two peers connecting at
+	// the same time with the same roomId create two separate rooms with same
+	// roomId.
+	queue.push(async () =>
+	{
+		const room = await getOrCreateRoom({ roomId, forceH264, forceVP9 });
+
+		// Accept the protoo WebSocket connection.
+		const protooWebSocketTransport = accept();
+
+		room.handleProtooConnection({ peerId, protooWebSocketTransport });
+	})
+		.catch((error) =>
+		{
+			logger.error('room creation or room joining failed:%o', error);
+
+			reject(error);
+		});
+}
+async function runProtooWSSWebSocketServer()
 {
 	logger.info('running protoo WebSocketServer...');
 
 	// Create the protoo WebSocket server.
-	protooWebSocketServer2 = new protoo.WebSocketServer(httpsServer,
+	protooWSSWebSocketServer = new protoo.WebSocketServer(httpsServer,
 		{
 			maxReceivedFrameSize     : 960000, // 960 KBytes.
 			maxReceivedMessageSize   : 960000,
@@ -483,45 +492,7 @@ async function runProtooWebSocketServer2()
 		});
 
 	// Handle connections from clients.
-	protooWebSocketServer2.on('connectionrequest', (info, accept, reject) =>
-	{
-		// The client indicates the roomId and peerId in the URL query.
-		const u = url.parse(info.request.url, true);
-		const roomId = u.query['roomId'];
-		const peerId = u.query['peerId'];
-		const forceH264 = u.query['forceH264'] === 'true';
-		const forceVP9 = u.query['forceVP9'] === 'true';
-
-		if (!roomId || !peerId)
-		{
-			reject(400, 'Connection request without roomId and/or peerId');
-
-			return;
-		}
-
-		logger.info(
-			'protoo connection request [roomId:%s, peerId:%s, address:%s, origin:%s]',
-			roomId, peerId, info.socket.remoteAddress, info.origin);
-
-		// Serialize this code into the queue to avoid that two peers connecting at
-		// the same time with the same roomId create two separate rooms with same
-		// roomId.
-		queue.push(async () =>
-		{
-			const room = await getOrCreateRoom({ roomId, forceH264, forceVP9 });
-
-			// Accept the protoo WebSocket connection.
-			const protooWebSocketTransport = accept();
-
-			room.handleProtooConnection({ peerId, protooWebSocketTransport });
-		})
-			.catch((error) =>
-			{
-				logger.error('room creation or room joining failed:%o', error);
-
-				reject(error);
-			});
-	});
+	protooWSSWebSocketServer.on('connectionrequest', (info, accept, reject) =>handleConnect(info, accept, reject));
 }
 /**
  * Get next mediasoup Worker.
