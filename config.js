@@ -127,7 +127,7 @@ module.exports =
 			[
 				{
 					ip          : process.env.MEDIASOUP_LISTEN_IP || '0.0.0.0',
-					announcedIp : '210.21.53.158'
+					announcedIp : '192.168.1.100'
 				}
 			],
 			initialAvailableOutgoingBitrate : 1000000,
