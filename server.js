@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 process.title = 'mediasoup-demo-server';
-process.env.DEBUG = process.env.DEBUG || '*INFO* *WARN* *ERROR*';
-
+//process.env.DEBUG = process.env.DEBUG || '*INFO* *WARN* *ERROR*';
+process.env.DEBUG =  '*ERROR*';
 const config = require('./config');
 
 /* eslint-disable no-console */
