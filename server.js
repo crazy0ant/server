@@ -362,6 +362,48 @@ async function createExpressApp()
 			res.status(200).send(JSON.stringify(result));
 		});
 	/**
+	 * 向房间中的某个成员发送信令
+	 * 例：/rooms/1234/user1/mic-off
+	 * 向1234房间中的user1发送信令mic-off
+	 */
+	expressApp.get(
+		'/rooms/:roomId/:peerId/:signal', (req, res) =>
+		{
+			console.log(req.params);
+			let result = {
+				code:0,
+				msg:'',
+			};
+			const {peerId, signal,} = req.params;
+
+			const protooRoom = req.room._protooRoom;
+			if(protooRoom && req.room._protooRoom._peers){
+				const peer = req.room._protooRoom._peers.get(peerId)
+				if(peer){
+					peer.notify(
+						'httpSignal', {peerId : peerId, signal : signal,}
+						).then(()=>{
+							result.msg = `发送成功-${peerId}`;
+							res.status(200).send(JSON.stringify(result));
+						}).catch(() => {
+							result.code = 500;
+							result.msg = `发送失败${peerId}`;
+							res.status(200).send(JSON.stringify(result));
+						});
+				}else{
+					result.code = 500;
+					result.msg = `${peerId}-不存在`;
+				}
+			}else{
+				result.code = 500;
+				result.msg = "房间不存在";
+
+			}
+			console.log(req.room._protooRoom._peers)
+			res.status(200).send(JSON.stringify(result));
+		});
+
+	/**
 	 * Error handler.
 	 */
 	expressApp.use(

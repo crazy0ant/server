@@ -10,6 +10,25 @@
 
 const os = require('os');
 
+function getIPAdress() {
+	var interfaces = os.networkInterfaces();
+	for (var devName in interfaces) {
+		var iface = interfaces[devName];
+		for (var i = 0; i < iface.length; i++) {
+			var alias = iface[i];
+			if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+				return alias.address;
+			}
+		}
+	}
+}
+//配置外网访问的IP
+let ip = '';
+ip = '210.21.53.158';
+if(!ip){
+	ip = getIPAdress();
+}
+
 module.exports =
 {
 	// Listening hostname (just for `gulp live` task).
@@ -127,7 +146,7 @@ module.exports =
 			[
 				{
 					ip          : process.env.MEDIASOUP_LISTEN_IP || '0.0.0.0',
-					announcedIp : '210.21.53.158'
+					announcedIp : ip
 				}
 			],
 			initialAvailableOutgoingBitrate : 1000000,
@@ -144,7 +163,7 @@ module.exports =
 			listenIp :
 			{
 				ip          : process.env.MEDIASOUP_LISTEN_IP || '0.0.0.0',
-				announcedIp : '210.21.53.158'
+				announcedIp : ip
 			},
 			maxSctpMessageSize : 262144
 		}
