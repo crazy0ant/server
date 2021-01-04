@@ -24,7 +24,7 @@ function getIPAdress() {
 }
 //配置外网访问的IP
 let ip = '';
-ip = '210.21.53.158';
+//ip = '210.21.53.158';
 if(!ip){
 	ip = getIPAdress();
 }
@@ -51,6 +51,12 @@ module.exports =
 		listenIp   : '0.0.0.0',
 		// NOTE: Don't change listenPort (client app assumes 4443).
 		listenPort : process.env.PROTOO_LISTEN_PORT || 4442,
+	},
+	httpws  :
+	{
+		listenIp   : '0.0.0.0',
+		// NOTE: Don't change listenPort (client app assumes 4443).
+		listenPort : process.env.PROTOO_LISTEN_PORT || 4440,
 	},
 	// mediasoup settings.
 	mediasoup :

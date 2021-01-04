@@ -42,10 +42,13 @@ let httpsServer;
 // @type {https.Server}
 let httpServer;
 
+let httpWsServer;
+
 // Express application.
 // @type {Function}
 let expressApp;
 
+let expressApp2;
 // Protoo WebSocket server.
 // @type {protoo.WebSocketServer}
 let protooWebSocketServer;
@@ -79,9 +82,14 @@ async function run()
 	// Create Express app.
 	await createExpressApp();
 
+	await createExpressApp2();
+
 	// Run HTTP server.
 	//await runHttpServer();
 	await runHttpServer();
+
+	await runHttpWsServer();
+
 
 	// Run HTTPS server.
 	//await runHttpsServer();
@@ -403,10 +411,83 @@ async function createExpressApp()
 			res.status(200).send(JSON.stringify(result));
 		});
 
+	//获取服务器在线人数
+	expressApp.get(
+		'/rooms/:roomId/onlineNum', (req, res) =>
+		{
+			let onlineNum = 0;
+			for (const room of rooms.values())
+			{
+				onlineNum += room._protooRoom._peers.size();
+
+			}
+			const result = {onlineNum};
+			res.status(200).send(JSON.stringify(result));
+		});
+/*
+
+		for (const room of rooms.values())
+		{
+			room.logStatus();
+		}
+	}, 5000);
+ */
+
 	/**
 	 * Error handler.
 	 */
 	expressApp.use(
+		(error, req, res, next) =>
+		{
+			if (error)
+			{
+				logger.warn('Express app %s', String(error));
+
+				error.status = error.status || (error.name === 'TypeError' ? 400 : 500);
+
+				res.statusMessage = error.message;
+				res.status(error.status).send(String(error));
+			}
+			else
+			{
+				next();
+			}
+		});
+}
+
+//获取服务信息的http接口
+async function createExpressApp2()
+{
+	logger.info('creating Express app 2 ...');
+
+	expressApp2 = express();
+	expressApp2.use(bodyParser.json());
+
+	//获取服务器在线人数
+	expressApp2.get(
+		'/rooms/onlineNum', (req, res) =>
+		{
+			let onlineNum = 0;
+			for (const room of rooms.values())
+			{
+				onlineNum += room._protooRoom._peers.size;
+			}
+			const result = {onlineNum};
+			res.status(200).send(JSON.stringify(result));
+		});
+	/*
+
+            for (const room of rooms.values())
+            {
+                room.logStatus();
+            }
+        }, 5000);
+     */
+
+	/**
+	 * Error handler.
+	 */
+	expressApp2.use(
 		(error, req, res, next) =>
 		{
 			if (error)
@@ -463,7 +544,20 @@ async function runHttpServer()
 			Number(config.http.listenPort), config.http.listenIp, resolve);
 	});
 }
+async function runHttpWsServer()
+{
+	logger.info('running an ws HTTP ws server...');
 
+	// HTTP server for the protoo WebSocket server.
+
+	httpWsServer = http.createServer(expressApp2);
+
+	await new Promise((resolve) =>
+	{
+		httpWsServer.listen(
+			Number(config.httpws.listenPort), config.httpws.listenIp, resolve);
+	});
+}
 /**
  * Create a protoo WebSocketServer to allow WebSocket connections from browsers.
  */
