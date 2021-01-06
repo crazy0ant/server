@@ -24,7 +24,7 @@ function getIPAdress() {
 }
 //配置外网访问的IP
 let ip = '';
-//ip = '210.21.53.158';
+ip = '210.21.53.158';
 if(!ip){
 	ip = getIPAdress();
 }
